@@ -4,22 +4,34 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use App\Models\ProvProducto;
+use Illuminate\Support\Facades\DB;
+use Laravel\Prompts\Output\ConsoleOutput;
 use Process;
+
+//LA TABLA PROV_PRODUCTO SE LE PUEDE HACER REFERENCIA COMO VINCULACION/VINCULACIONES
 
 class provproductoController extends Controller
 {
     //Funcion para mostrar las vinculaciones de los productos con proveedores
     public function index()
     {
-        $vinculacion = ProvProducto::all();
-        if($vinculacion->isEmpty()){
+        $vinculacion = DB::select("SELECT 
+    prov_productos.idProveedor, 
+    proveedores.nombreProveedor, 
+    prov_productos.idProducto, 
+    productos.nombreProducto FROM prov_productos JOIN proveedores ON prov_productos.idProveedor = proveedores.idProveedor JOIN productos ON prov_productos.idProducto = productos.idProducto");
+        if(!$vinculacion){
             $result=[
-                'message'=>'No hay vinculaciones',
+                'message'=>'No hay vinculaciones de productos con proveedores',
                 'status'=>'404'
-            ];
-            return response()->json($result, 404);
+            ]; 
+            return response()->json($result,404);
         }else{
-            return response()->json(ProvProducto::all(), 200);
+            $result=[
+                'status'=>200,
+                'vinculaciones'=>$vinculacion
+            ];
+            return response()->json($result,200);
         }
     }
 
@@ -43,24 +55,59 @@ class provproductoController extends Controller
     //Funcion para mostrar vinculacion por proveedor
     public function show($idProveedor)
     {
-        $vinculacion = ProvProducto::find($idProveedor);
-        return response()->json($vinculacion, 200);
+        $vinculacion = DB::select("
+            SELECT 
+                prov_productos.idProducto, 
+                productos.nombreProducto
+            FROM 
+                prov_productos
+            JOIN 
+                productos ON prov_productos.idProducto = productos.idProducto
+            WHERE 
+                prov_productos.idProveedor = ?
+        ", [$idProveedor]);
+
+        if(!$vinculacion){
+            return response()->json([
+                'message' => 'No se encontraron productos para este proveedor',
+                'status' => 404
+            ], 404);
+        }
+
+        return response()->json([
+            'status' => 200,
+            'productos' => $vinculacion
+        ], 200);
     }
 
-    /**
-     * Update the specified resource in storage.
-     */
+    //
     public function update(Request $request, string $id)
     {
         //
     }
 
-    //Funcion para eliminar una vinculacion
-    public function destroy($idProveedor)
+    //Funcion para eliminar una vinculacion pidienco como parametro idProveedor e idProducto
+    public function delete($idProveedor, $idProducto)
     {
-        ProvProducto::find($idProveedor)->delete();
+        //Vinculacion por proveedor y producto
+        $vinculacion = DB::table('prov_productos')->where('idProveedor',$idProveedor)->where('idProducto',$idProducto)->first();
+        
+        if(!$vinculacion){
+            return response()->json([
+                'message'=>'No hay vinculacion con ese producto y ese proveedor',
+                'status'=>404
+            ],404);
+        }
+
+        // Eliminamos la vinculación
+        DB::table('prov_productos')
+        ->where('idProveedor', $idProveedor)
+        ->where('idProducto', $idProducto)
+        ->delete();
+
         return response()->json([
-            'success'=>true,
+            'message' => 'La vinculación ha sido eliminada correctamente',
+            'status' => 200
         ], 200);
     }
 }
